@@ -1,12 +1,19 @@
 """
 """
 
-from argparse import ArgumentParser
+from deep_studio.exp_layer.experiment import Experiment
 
-
-def parse_args():
-    parser = ArgumentParser(description="2024-dacon-image-reconstruction")
-    parser.add_argument("--config", help="train config file")
 
 def main():
-    
+
+    exp = Experiment()
+
+    exp.build()
+
+    exp.run()
+
+    exp.visualization()
+
+
+if __name__ == "__main__":
+    main()

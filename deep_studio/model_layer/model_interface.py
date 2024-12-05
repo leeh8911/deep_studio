@@ -22,8 +22,24 @@ class BaseModelInterface(torch.nn.Module):
 
     @abstractmethod
     def forward_train(self, *args, **kwargs) -> Any:
+        """모델에 데이터를 넣어 예측값과 손실값, 평가지표를 출력하기 위한 추상 함수
+
+        Raises:
+            NotImplementedError: _description_
+
+        Returns:
+            Any: 필요에 따라 예측값과 손실값, 평가지표를 출력함
+        """
         raise NotImplementedError("You need implement this 'forward_train'")
 
     @abstractmethod
     def forward_test(self, *args, **kwargs) -> Any:
+        """모델에 데이터를 넣어 예측값을 출력하기 위한 추상 함수
+
+        Raises:
+            NotImplementedError: _description_
+
+        Returns:
+            Any: 모델에서 필요한 예측값만 출력함
+        """
         raise NotImplementedError("You need implement this 'forward_test'")
