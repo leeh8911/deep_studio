@@ -1,5 +1,9 @@
 import logging
-from typing import Optional
+from typing import Optional, Type, Dict, Any
+
+
+class RegistryError(Exception):
+    pass
 
 
 class BaseRegistry(type):
@@ -14,7 +18,7 @@ class BaseRegistry(type):
 
         # 각 클래스의 고유한 REGISTRY 생성
         if not hasattr(new_cls, "REGISTRY"):
-            new_cls.REGISTRY = {}
+            new_cls.REGISTRY: Dict[str, Type[Any]] = {}
 
         # register 메서드를 각 클래스에 바인딩
         def register(cls, tgt):
@@ -23,7 +27,10 @@ class BaseRegistry(type):
 
         def build(cls, **kwargs):
             name = kwargs.get("name")
-            assert name in cls.REGISTRY, f"{name} is not registered."
+            if name not in cls.REGISTRY:
+                raise RegistryError(
+                    f"Class '{name}' is not registered in {cls.__name__}."
+                )
 
             ret = cls.REGISTRY[name](**kwargs)
             ret.__setattr__("logger", cls.logger.getChild(name))
@@ -37,7 +44,7 @@ class BaseRegistry(type):
         return new_cls
 
 
-def REGISTRY_FACTORY(name, log_level: str = "debug"):
+def REGISTRY_FACTORY(name, log_level: str = "info"):
     """
     이름을 통해 새로운 레지스트리 클래스를 생성하여 반환합니다.
     """
