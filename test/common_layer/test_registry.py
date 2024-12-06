@@ -13,9 +13,14 @@ def test_registry():
             self.spiderman = spiderman
             self.ironman = ironman
 
+        def do_something(self):
+            self.logger.info("this is Foo class")
+
     foo = TEST_REGISTRY.build(
         **{"name": "Foo", "spiderman": "Tom", "ironman": "Robert"}
     )
+
+    foo.do_something()
 
     assert foo.name == "Foo"
     assert foo.spiderman == "Tom"

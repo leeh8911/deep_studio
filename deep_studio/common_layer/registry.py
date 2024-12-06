@@ -1,3 +1,7 @@
+import logging
+from typing import Optional
+
+
 class BaseRegistry(type):
     """
     BaseRegistry 클래스는 클래스를 등록하고, 이름을 통해 해당 클래스를 인스턴스화할 수 있는 기능을 제공합니다.
@@ -20,7 +24,10 @@ class BaseRegistry(type):
         def build(cls, **kwargs):
             name = kwargs.get("name")
             assert name in cls.REGISTRY, f"{name} is not registered."
-            return cls.REGISTRY[name](**kwargs)
+
+            ret = cls.REGISTRY[name](**kwargs)
+            ret.__setattr__("logger", cls.logger.getChild(name))
+            return ret
 
         new_cls.register = classmethod(register)
         new_cls.build = classmethod(build)
@@ -30,9 +37,20 @@ class BaseRegistry(type):
         return new_cls
 
 
-def REGISTRY_FACTORY(name):
+def REGISTRY_FACTORY(name, log_level: str = "debug"):
     """
     이름을 통해 새로운 레지스트리 클래스를 생성하여 반환합니다.
     """
-    # 동적으로 이름이 name인 클래스를 생성하고, BaseRegistry를 메타클래스로 지정
-    return BaseRegistry(name, (object,), {})
+
+    logger = logging.getLogger(name=name)
+    logger.setLevel(log_level.upper())
+
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "[%(asctime)s] [%(levelname)s] [%(pathname)s:%(lineno)d - %(funcName)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    return BaseRegistry(name, (object,), {"logger": logger})
