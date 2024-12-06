@@ -6,3 +6,4 @@ poetry.lock
 make.bat
 MakeFile
 build/
+.pytest_cache/
