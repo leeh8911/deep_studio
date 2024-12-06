@@ -1,6 +1,6 @@
-import torch
 from abc import abstractmethod
 from typing import Any
+import torch
 
 
 class BaseModelInterface(torch.nn.Module):

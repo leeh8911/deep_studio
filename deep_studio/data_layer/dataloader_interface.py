@@ -1,0 +1,3 @@
+from deep_studio.common_layer.registry import REGISTRY_FACTORY
+
+DATALOADER_FACTORY = REGISTRY_FACTORY("DATALOADER_FACTORY")
