@@ -13,12 +13,16 @@ class BaseRegistry(type):
 
     all_registry = dict()
 
+    REGISTRY: Dict[str, Type[Any]]
+    register: classmethod
+    build: classmethod
+
     def __new__(cls, name, bases, attrs):
         new_cls = type.__new__(cls, name, bases, attrs)
 
         # 각 클래스의 고유한 REGISTRY 생성
         if not hasattr(new_cls, "REGISTRY"):
-            new_cls.REGISTRY: Dict[str, Type[Any]] = {}
+            new_cls.REGISTRY = {}
 
         # register 메서드를 각 클래스에 바인딩
         def register(cls, tgt):
