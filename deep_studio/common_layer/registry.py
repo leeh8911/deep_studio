@@ -1,9 +1,14 @@
+"""registry.py
+
+사용자가 정의한 클래스를 등록하여 손쉽게 다룰 수 있게 도와주기 위한 레지스터
+"""
+
 import logging
-from typing import Optional, Type, Dict, Any
+from typing import Type, Dict, Any
 
 
 class RegistryError(Exception):
-    pass
+    """Registry에 관한 오류"""
 
 
 class BaseRegistry(type):
@@ -17,8 +22,8 @@ class BaseRegistry(type):
     register: classmethod
     build: classmethod
 
-    def __new__(cls, name, bases, attrs):
-        new_cls = type.__new__(cls, name, bases, attrs)
+    def __new__(mcs, name, bases, attrs):
+        new_cls = type.__new__(mcs, name, bases, attrs)
 
         # 각 클래스의 고유한 REGISTRY 생성
         if not hasattr(new_cls, "REGISTRY"):
@@ -43,12 +48,12 @@ class BaseRegistry(type):
         new_cls.register = classmethod(register)
         new_cls.build = classmethod(build)
 
-        cls.all_registry[name] = new_cls
+        mcs.all_registry[name] = new_cls
 
         return new_cls
 
 
-def REGISTRY_FACTORY(name, log_level: str = "info"):
+def REGISTRY_FACTORY(name, log_level: str = "info"):  # pylint: disable=invalid-name
     """
     이름을 통해 새로운 레지스트리 클래스를 생성하여 반환합니다.
     """
