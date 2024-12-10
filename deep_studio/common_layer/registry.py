@@ -3,6 +3,7 @@
 사용자가 정의한 클래스를 등록하여 손쉽게 다룰 수 있게 도와주기 위한 레지스터
 """
 
+import importlib
 import logging
 from typing import Type, Dict, Any
 
@@ -67,18 +68,30 @@ class BaseRegistry(metaclass=type):
         """
         등록된 클래스를 이름을 통해 인스턴스화합니다.
         """
-        name = kwargs.get("name")
-        if name not in cls.REGISTRY:
-            raise RegistryError(f"Class '{name}' is not registered in {cls.__name__}.")
 
-        new_type = type(f"{name}_Logger", (cls.REGISTRY[name], LogMixin), {})
+        name = kwargs.pop("name")
+        if name in cls.REGISTRY:
+            # REGISTRY에서 인스턴스를 생성
+            new_type = type(f"{name}_Logger", (cls.REGISTRY[name], LogMixin), {})
+            instance = new_type(**kwargs)
+            instance.logger = cls.logger.getChild(new_type.__name__)
+            cls.logger.debug(
+                "Instance of '%s' created in '%s'.", new_type.__name__, cls.__name__
+            )
+            return instance
 
-        instance = new_type(**kwargs)
-        instance.logger = cls.logger.getChild(new_type.__name__)
-        cls.logger.debug(
-            "Instance of '%s' created in '%s'.", new_type.__name__, cls.__name__
-        )
-        return instance
+        try:
+            module_path, class_name = name.rsplit(".", 1)
+            module = importlib.import_module(module_path)
+            tgt_class = getattr(module, class_name)
+            new_type = type(name, (tgt_class,), {})
+
+            cls.register(new_type)
+            cls.logger.debug("Class '%s' dynamically loaded and registered.", name)
+            kwargs.update({"name": name})
+            return cls.build(**kwargs)
+        except Exception as e:
+            raise RegistryError(f"Error loading class '{name}': {e}")
 
 
 def make_registry(name: str, log_level: str = "info") -> Type[BaseRegistry]:
