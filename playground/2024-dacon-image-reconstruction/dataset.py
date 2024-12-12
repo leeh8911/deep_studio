@@ -1,24 +1,18 @@
 """dataset.py
-
 2024 dacon image reconstruction dataset
-
 """
 
 from pathlib import Path
-
 from typing import Optional, Tuple, Callable
 
 from PIL import Image
-
 import torch
-
-from torch.utils.data import Dataset
 
 from deep_studio.data_layer.data_registry import DATASET_REGISTRY
 
 
 @DATASET_REGISTRY.register
-class Dacon2024ImageReconstructionDataset(Dataset):
+class Dacon2024ImageReconstructionDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         root: str,

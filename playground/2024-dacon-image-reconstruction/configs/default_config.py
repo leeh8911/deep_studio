@@ -10,7 +10,6 @@ TRAIN_DATALOADER = {
         "input_path": "train_input",
         "gt_path": "train_gt",
     },
-    "split": {"train": 0.9, "valid": 0.1},
     "batch_size": 8,
 }
 TEST_DATALOADER = {
@@ -22,7 +21,10 @@ TEST_DATALOADER = {
     },
     "batch_size": 8,
 }
+
 cfg = {
+    "train": True,
+    "seed": 42,
     "dataloader": {
         "dataset": {
             "name": "Dacon2024ImageReconstructionDataset",
