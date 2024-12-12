@@ -9,9 +9,11 @@ from deep_studio.model_layer.model_registry import (
 import torch
 
 
-@MODEL_INTERFACE_REGISTRY.build
+@MODEL_INTERFACE_REGISTRY.register
 class Dacon2024ImageReconstructionModelInterface(BaseModelInterface):
     def __init__(self, **kwargs):
+        super().__init__()
+
         self.model = MODEL_REGISTRY.build(**kwargs.get("model"))
         self.criterion = LOSS_REGISTRY.build(**kwargs.get("loss"))
 

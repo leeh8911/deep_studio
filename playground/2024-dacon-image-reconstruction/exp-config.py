@@ -3,15 +3,34 @@
 
 DATA_ROOT = "F:/datasets/2024_dacon_image_restoration"
 
-MODEL = {"name"}
-
-
+TRAIN_DATALOADER = {
+    "dataset": {
+        "name": "Dacon2024ImageReconstructionDataset",
+        "root": DATA_ROOT,
+        "input_path": "train_input",
+        "gt_path": "train_gt",
+    },
+    "split": {"train": 0.9, "valid": 0.1},
+    "batch_size": 8,
+}
+TEST_DATALOADER = {
+    "dataset": {
+        "name": "Dacon2024ImageReconstructionDataset",
+        "root": DATA_ROOT,
+        "input_path": "test_input",
+        "gt_path": None,
+    },
+    "batch_size": 8,
+}
 cfg = {
     "dataloader": {
-        "dataset": {"name": "Dacon2024ImageReconstruction", "root": DATA_ROOT},
+        "dataset": {
+            "name": "Dacon2024ImageReconstructionDataset",
+            "root": DATA_ROOT,
+            "input_path": "train_input",
+            "gt_path": "train_gt",
+        },
         "batch_size": 8,
-        "shuffle": True,
-        "transforms": [],
     },
     "model_interface": {
         "name": "Dacon2024ImageReconstructionModelInterface",
