@@ -17,11 +17,14 @@ class Dacon2024ImageReconstructionModelInterface(BaseModelInterface):
         self.model = MODEL_REGISTRY.build(**kwargs.get("model"))
         self.criterion = LOSS_REGISTRY.build(**kwargs.get("loss"))
 
+    def forward(self, image: Image) -> Image:
+        return self.model(image)
+
     def forward_train(self, image: Image, target_image: Image) -> (Loss, Metrics):
-        pred_image = self.model(image)
+        pred_image = self(image)
         loss = self.criterion(pred_image, target_image)
         return loss, None
 
     def forward_test(self, image: Image) -> (Image, Metrics):
-        pred_image = self.model(image)
+        pred_image = self(image)
         return pred_image, None

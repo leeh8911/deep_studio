@@ -11,6 +11,7 @@ from deep_studio.data_layer.data_registry import DATALOADER_REGISTRY
 from deep_studio.model_layer.model_registry import (
     MODEL_INTERFACE_REGISTRY,
     MODEL_REGISTRY,
+    OPTIMIZER_REGISTRY,
 )
 
 
@@ -33,11 +34,26 @@ class Experiment:
         self.seed = self.config["cfg"]["seed"] if "seed" in self.config["cfg"] else 0
         self.__set_seed(self.seed)
 
+        self.device = self.__device_check(self.config["cfg"]["device"])
+
+        self.train = self.config["cfg"]["train"]
+
         self.model = MODEL_INTERFACE_REGISTRY.build(
             **self.config["cfg"]["model_interface"]
         )
+        self.optimizer = OPTIMIZER_REGISTRY.build(**self.config["cfg"]["optimizer"])
+        if "scheduler" in self.config["cfg"]:
+            self.scheduler = self.config["cfg"]["scheduler"]
+        else:
+            self.scheduler = None
 
         self.dataloader = DATALOADER_REGISTRY.build(**self.config["cfg"]["dataloader"])
+
+    def __device_check(self, device):
+        if device == "cuda" and torch.cuda.is_available():
+            return device
+
+        return "cpu"
 
     def __set_seed(self, seed):
         self.seed = seed
@@ -50,6 +66,15 @@ class Experiment:
         torch.backends.cudnn.benchmark = False
 
     def run(self):
+
+        for idx, data in enumerate(self.dataloader):
+            input_image, gt_image = data
+            loss, _ = self.model.forward_train(input_image, gt_image)
+
+    def save(self):
+        pass
+
+    def load(self):
         pass
 
     def visualization(self):

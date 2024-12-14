@@ -9,6 +9,7 @@ project_root = Path(__file__).resolve().parent
 sys.path.append(str(project_root))
 
 from models.model_interface import Dacon2024ImageReconstructionModelInterface
+from dataset import Dacon2024ImageReconstructionDataset
 
 from deep_studio.exp_layer.experiment import Experiment
 
@@ -16,11 +17,7 @@ from deep_studio.exp_layer.experiment import Experiment
 def main():
     exp = Experiment()
 
-    exp.build()
-
     exp.run()
-
-    exp.visualization()
 
 
 if __name__ == "__main__":

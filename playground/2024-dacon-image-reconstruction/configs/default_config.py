@@ -4,15 +4,22 @@
 DATA_ROOT = "F:/datasets/2024_dacon_image_restoration"
 
 TRAIN_DATALOADER = {
+    "name": "DataLoader",
     "dataset": {
         "name": "Dacon2024ImageReconstructionDataset",
         "root": DATA_ROOT,
-        "input_path": "train_input",
-        "gt_path": "train_gt",
+        "image_folder": "train_input",
+        "gt_folder": "train_gt",
+        "transforms": {
+            "name": "Dacon2024ImageReconstructionTransform",
+            "compose": [{"name": "ToTensor"}],
+        },
     },
     "batch_size": 8,
+    "shuffle": True,
 }
 TEST_DATALOADER = {
+    "name": "DataLoader",
     "dataset": {
         "name": "Dacon2024ImageReconstructionDataset",
         "root": DATA_ROOT,
@@ -20,20 +27,14 @@ TEST_DATALOADER = {
         "gt_path": None,
     },
     "batch_size": 8,
+    "shuffle": False,
 }
 
 cfg = {
     "train": True,
     "seed": 42,
-    "dataloader": {
-        "dataset": {
-            "name": "Dacon2024ImageReconstructionDataset",
-            "root": DATA_ROOT,
-            "input_path": "train_input",
-            "gt_path": "train_gt",
-        },
-        "batch_size": 8,
-    },
+    "device": "cuda",
+    "dataloader": TRAIN_DATALOADER,
     "model_interface": {
         "name": "Dacon2024ImageReconstructionModelInterface",
         "model": {"name": "CustomModel"},

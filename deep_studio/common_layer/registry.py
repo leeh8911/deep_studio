@@ -5,10 +5,15 @@
 
 import importlib
 import logging
-from typing import Type, Dict, Any
+from typing import Type, Dict, Any, List
+import inspect
 
 
 class RegistryError(Exception):
+    """Registry에 관한 오류"""
+
+
+class RegistryNotAllowedExtModule(RegistryError):
     """Registry에 관한 오류"""
 
 
@@ -47,8 +52,13 @@ class BaseRegistry(metaclass=type):
         """
         super().__init_subclass__(**kwargs)
         cls.REGISTRY: Dict[str, Type[Any]] = {}
-        cls.logger = logging.getLogger(cls.__name__)  # 각 클래스의 이름으로 로거 설정
+        cls.__allow_ext_module = []
+        cls.loggerL = logging.getLogger(cls.__name__)  # 각 클래스의 이름으로 로거 설정
         BaseRegistry.all_registry[cls.__name__] = cls
+
+    @classmethod
+    def set_allow_ext_modules(cls, ext_module_list: List[str]):
+        cls.__allow_ext_module.extend(ext_module_list)
 
     @classmethod
     def register(cls, tgt: Type[Any]) -> Type[Any]:
@@ -82,6 +92,11 @@ class BaseRegistry(metaclass=type):
 
         try:
             module_path, class_name = name.rsplit(".", 1)
+            base_module = name.split(".")[0]
+            if not base_module in cls.__allow_ext_module:
+                raise RegistryNotAllowedExtModule(
+                    f"{base_module} is not Allowed. {cls.__class__.__name__} registry allow these: {cls.__allow_ext_module}"
+                )
             module = importlib.import_module(module_path)
             tgt_class = getattr(module, class_name)
             new_type = type(name, (tgt_class,), {})
