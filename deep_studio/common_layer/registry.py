@@ -83,6 +83,9 @@ class BaseRegistry(metaclass=type):
         if name in cls.REGISTRY:
             # REGISTRY에서 인스턴스를 생성
             new_type = type(f"{name}_Logger", (cls.REGISTRY[name], LogMixin), {})
+
+            cls.validate_arguments(new_type, kwargs)
+
             instance = new_type(**kwargs)
             instance.logger = cls.logger.getChild(new_type.__name__)
             cls.logger.debug(
@@ -107,6 +110,32 @@ class BaseRegistry(metaclass=type):
             return cls.build(**kwargs)
         except Exception as e:
             raise RegistryError(f"Error loading class '{name}': {e}")
+
+    @classmethod
+    def validate_arguments(cls, new_type, kwargs):
+        # 클래스의 시그니처 확인
+        signature = inspect.signature(new_type)
+        parameters = signature.parameters
+
+        # 필수 인자 필터링: 기본값이 없는 인자만 선택
+        required_keys = {
+            name
+            for name, param in parameters.items()
+            if param.default is inspect.Parameter.empty
+            and param.kind
+            not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        }
+
+        # kwargs로 전달된 키
+        provided_keys = set(kwargs.keys())
+
+        # 필수 인자 누락 확인
+        missing_keys = required_keys - provided_keys
+        if missing_keys:
+            raise TypeError(
+                f"{new_type.__name__} class's required arguments are {required_keys}. "
+                f"But the following required arguments are missing: {missing_keys}."
+            )
 
 
 def make_registry(name: str, log_level: str = "info") -> Type[BaseRegistry]:

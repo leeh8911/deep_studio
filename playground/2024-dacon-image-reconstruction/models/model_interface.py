@@ -11,11 +11,11 @@ import torch
 
 @MODEL_INTERFACE_REGISTRY.register
 class Dacon2024ImageReconstructionModelInterface(BaseModelInterface):
-    def __init__(self, **kwargs):
+    def __init__(self, model, criterion, **kwargs):
         super().__init__()
 
-        self.model = MODEL_REGISTRY.build(**kwargs.get("model"))
-        self.criterion = LOSS_REGISTRY.build(**kwargs.get("loss"))
+        self.model = MODEL_REGISTRY.build(**model)
+        self.criterion = LOSS_REGISTRY.build(**criterion)
 
     def forward(self, image: Image) -> Image:
         return self.model(image)

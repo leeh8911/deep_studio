@@ -44,7 +44,7 @@ class ToTensor:
         self, input_image: Image, gt_image: Optional[Image] = None
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         return self.input_totensor(input_image), (
-            self.gt_totensor(gt_image) if gt_image else None
+            self.gt_totensor(gt_image) if gt_image else torch.empty(0)
         )
 
 
@@ -65,7 +65,7 @@ class Dacon2024ImageReconstructionDataset(torch.utils.data.Dataset):
         self.transforms = TRANSFORM_REGISTRY.build(**transforms)
 
         assert self.input_path.exists()
-        assert self.gt_path.exists() or self.gt_path is None
+        assert self.gt_path is None or self.gt_path.exists()
 
         self.input_path_list = sorted(self.input_path.glob("*.png"))
 

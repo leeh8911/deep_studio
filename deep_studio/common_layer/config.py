@@ -7,6 +7,7 @@ import yaml
 
 
 class Config(dict):
+
     @staticmethod
     def from_file(filename):
         """

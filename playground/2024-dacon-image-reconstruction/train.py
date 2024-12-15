@@ -4,6 +4,8 @@
 import sys
 from pathlib import Path
 
+from torchvision.transforms.functional import to_pil_image
+
 # 프로젝트 경로 설정
 project_root = Path(__file__).resolve().parent
 sys.path.append(str(project_root))
@@ -17,7 +19,16 @@ from deep_studio.exp_layer.experiment import Experiment
 def main():
     exp = Experiment()
 
-    exp.run()
+    exp.train()
+
+    res = exp.test()
+
+    for idx, image in enumerate(res):
+        image = to_pil_image(image)
+
+        image.save(
+            f"playground/2024-dacon-image-reconstruction/output/TEST_{str(idx).zfill(3)}.png"
+        )
 
 
 if __name__ == "__main__":

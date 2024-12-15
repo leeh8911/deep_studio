@@ -1,43 +1,91 @@
 """실험에 사용될 Configuration 파일
 """
 
+__all__ = ["cfg"]
+
 DATA_ROOT = "F:/datasets/2024_dacon_image_restoration"
 
-TRAIN_DATALOADER = {
-    "name": "DataLoader",
-    "dataset": {
-        "name": "Dacon2024ImageReconstructionDataset",
-        "root": DATA_ROOT,
-        "image_folder": "train_input",
-        "gt_folder": "train_gt",
-        "transforms": {
-            "name": "Dacon2024ImageReconstructionTransform",
-            "compose": [{"name": "ToTensor"}],
+TRAIN = "train"
+VALIDATION = "validation"
+TEST = "test"
+
+SEED = 42
+
+MAX_EPOCH = 64
+
+DATALOADER_FACTORY = {
+    "name": "DataLoaderFactory",
+    "dataset_dict": {
+        TRAIN: {
+            "name": "Dacon2024ImageReconstructionDataset",
+            "root": DATA_ROOT,
+            "image_folder": "train_input",
+            "gt_folder": "train_gt",
+            "transforms": {
+                "name": "Dacon2024ImageReconstructionTransform",
+                "compose": [{"name": "ToTensor"}],
+            },
+        },
+        TEST: {
+            "name": "Dacon2024ImageReconstructionDataset",
+            "root": DATA_ROOT,
+            "image_folder": "test_input",
+            "gt_folder": None,
+            "transforms": {
+                "name": "Dacon2024ImageReconstructionTransform",
+                "compose": [{"name": "ToTensor"}],
+            },
         },
     },
-    "batch_size": 8,
-    "shuffle": True,
-}
-TEST_DATALOADER = {
-    "name": "DataLoader",
-    "dataset": {
-        "name": "Dacon2024ImageReconstructionDataset",
-        "root": DATA_ROOT,
-        "input_path": "test_input",
-        "gt_path": None,
-    },
-    "batch_size": 8,
-    "shuffle": False,
+    "seed": SEED,
+    "split": {TRAIN: 0.9, VALIDATION: 0.1},
+    TRAIN: {"batch_size": 8, "shuffle": True},
+    VALIDATION: {"batch_size": 8, "shuffle": False},
+    TEST: {"batch_size": 8, "shuffle": False},
 }
 
 cfg = {
-    "train": True,
-    "seed": 42,
+    "seed": SEED,
     "device": "cuda",
-    "dataloader": TRAIN_DATALOADER,
+    "max_epoch": MAX_EPOCH,
+    "checkpoint_dir": "./checkpoint",
+    "output_dir": "./output",
+    "temp_output_dir": "./temp_output",
+    "checkpoint_period": 1,
+    "dataloader": DATALOADER_FACTORY,
+    "split": {TRAIN: 0.8, "validation": 0.2},
     "model_interface": {
         "name": "Dacon2024ImageReconstructionModelInterface",
-        "model": {"name": "CustomModel"},
-        "loss": {"name": "torch.nn.L1Loss"},
+        "model": {
+            "name": "CustomModel",
+            "embed_layers": [
+                {
+                    "name": "CNBR",
+                    "in_channels": 1,
+                    "out_channels": 16,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": 16,
+                    "out_channels": 16,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": 16,
+                    "out_channels": 64,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": 64,
+                    "out_channels": 3,
+                    "kernel_size": 3,
+                },
+            ],
+        },
+        "criterion": {"name": "torch.nn.L1Loss"},
     },
+    "optimizer": {"name": "torch.optim.SGD", "lr": 1e-3, "momentum": 0.9},
 }
