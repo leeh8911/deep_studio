@@ -11,7 +11,7 @@ TEST = "test"
 
 SEED = 42
 
-MAX_EPOCH = 64
+MAX_EPOCH = 1
 
 DATALOADER_FACTORY = {
     "name": "DataLoaderFactory",
@@ -57,7 +57,7 @@ cfg = {
     "model_interface": {
         "name": "Dacon2024ImageReconstructionModelInterface",
         "model": {
-            "name": "CustomModel",
+            "name": "SecondModel",
             "embed_layers": [
                 {
                     "name": "CNBR",

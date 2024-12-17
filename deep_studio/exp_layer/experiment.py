@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 import logging
+import sys
 
 
 import numpy as np
@@ -42,8 +43,8 @@ class Experiment:
         args = parser.parse_args()
         config_path = args.config  # {project_path}/configs/config_file
 
-        self.config_name = config_path
-        self.workspace = os.path.join(*config_path.split("/")[:-2])
+        self.config_name = config_path.split("/")[-1].split(".")[0]
+        self.workspace = Path(*config_path.split("/")[:-2])
         self.config = Config.from_file(config_path)
 
         self.seed = self.config["cfg"]["seed"] if "seed" in self.config["cfg"] else 0
@@ -55,10 +56,18 @@ class Experiment:
         self.max_epoch = self.config["cfg"]["max_epoch"]
         self.current_epoch = 0
 
-        self.checkpoint_dir = self.config["cfg"]["checkpoint_dir"]
+        self.exp_base_dir = self.workspace.joinpath("experiment")
+        if not self.exp_base_dir.exists():
+            os.mkdir(self.exp_base_dir)
+        self.exp_dir = self.exp_base_dir.joinpath(
+            self.exp_time.strftime("%y%m%d_%H%M%S") + "_" + self.config_name
+        )
+        os.mkdir(self.exp_dir)
+
+        self.checkpoint_dir = self.exp_dir.joinpath("checkpoint")
         self.checkpoint_period = self.config["cfg"]["checkpoint_period"]
 
-        self.output_dir = self.config["cfg"]["output_dir"]
+        self.output_dir = self.exp_dir.joinpath("output")
 
         self.model = MODEL_INTERFACE_REGISTRY.build(
             **self.config["cfg"]["model_interface"]
@@ -139,7 +148,7 @@ class Experiment:
         return self.test_runner.run()
 
     def save_checkpoint(self, path: Union[str, Path]):
-        self.logger.info(f"Save checkpoint {path}")
+        self.logger.info("Save checkpoint  %s", path)
         torch.save(
             {
                 "epoch": self.current_epoch,
@@ -152,14 +161,18 @@ class Experiment:
         )
 
     def load_checkpoint(self, path: Union[str, Path]):
-        self.logger.info(f"Load checkpoint {path}")
+        self.logger.info("Load checkpoint %s", path)
         checkpoint = torch.load(path)  # 저장된 체크포인트 불러오기
 
         # 저장된 상태 복원
         self.current_epoch = checkpoint["epoch"]  # 에폭 정보
         self.model.load_state_dict(checkpoint["model"])  # 모델 가중치 로드
         self.optimizer.load_state_dict(checkpoint["optimizer"])  # 옵티마이저 상태 로드
-        self.scheduler.load_state_dict(checkpoint["scheduler"])  # 스케줄러 상태 로드
+
+        if checkpoint["scheduler"]:
+            self.scheduler.load_state_dict(
+                checkpoint["scheduler"]
+            )  # 스케줄러 상태 로드
         self.config = checkpoint["config"]  # 설정 정보 로드
 
     def visualization(self):
