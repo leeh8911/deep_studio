@@ -24,82 +24,49 @@ from deep_studio.exp_layer.runner import TrainRunner, ValidationRunner, TestRunn
 
 __all__ = ["Experiment"]
 
-
 class Experiment:
     """학습 및 검증을 위한 실험 클래스"""
 
     def __init__(self):
         self.logger = logging.getLogger("ExperimentLogger")
         self.exp_time = datetime.now()
+        args = self._parse_arguments()
+        
+        # 시드 및 디바이스 설정
+        self.config = Config.from_file(args.config)
+        self.seed = self.config.get("cfg", {}).get("seed", 0)
+        self.device = self._setup_device(self.config["cfg"].get("device", "cpu"))
+        self._set_seed(self.seed)
 
-        parser = ArgumentParser(description="실험 및 검증을 위한 실험 프로젝트")
-        parser.add_argument(
-            "--config", type=str, help="configuration file location for training"
-        )
-        parser.add_argument(
-            "--checkpoint", default=None, type=str, help="checkpoint file path"
-        )
-
-        args = parser.parse_args()
-        config_path = args.config  # {project_path}/configs/config_file
-
-        self.config_name = config_path.split("/")[-1].split(".")[0]
-        self.workspace = Path(*config_path.split("/")[:-2])
-        self.config = Config.from_file(config_path)
-
-        self.seed = self.config["cfg"]["seed"] if "seed" in self.config["cfg"] else 0
-        self.__set_seed(self.seed)
-
-        self.device = self.__device_check(self.config["cfg"]["device"])
-        self.logger.info("Set device: %s", self.device)
-
+        # 경로 설정 및 폴더 생성
+        self.workspace, self.exp_dir, self.checkpoint_dir = self._setup_experiment_directory(args.config)
+        self.checkpoint_period = self.config["cfg"].get("checkpoint_period", 1)
         self.max_epoch = self.config["cfg"]["max_epoch"]
         self.current_epoch = 0
 
-        self.exp_base_dir = self.workspace.joinpath("experiment")
-        if not self.exp_base_dir.exists():
-            os.mkdir(self.exp_base_dir)
-        self.exp_dir = self.exp_base_dir.joinpath(
-            self.exp_time.strftime("%y%m%d_%H%M%S") + "_" + self.config_name
-        )
-        os.mkdir(self.exp_dir)
-
-        self.checkpoint_dir = self.exp_dir.joinpath("checkpoint")
-        self.checkpoint_period = self.config["cfg"]["checkpoint_period"]
-
-        self.output_dir = self.exp_dir.joinpath("output")
-
-        self.model = MODEL_INTERFACE_REGISTRY.build(
-            **self.config["cfg"]["model_interface"]
-        )
-        self.model.to(self.device)
-        self.optimizer = OPTIMIZER_REGISTRY.build(
-            **self.config["cfg"]["optimizer"], params=self.model.parameters()
-        )
-        if "scheduler" in self.config["cfg"]:
-            raise NotImplementedError("Scheduler setting is not implemented")
-            # self.scheduler = self.config["cfg"]["scheduler"]
-        else:
-            self.scheduler = None
-
+        # 모델, 옵티마이저, 데이터로더 설정
+        self.model, self.optimizer, self.scheduler = self._setup_model_and_optimizer()
         self.dataloader_factory = DATALOADER_FACTORY_REGISTRY.build(
             **self.config["cfg"]["dataloader"]
         )
-        self.train_runner = None
-        self.validation_runner = None
-        self.test_runner = None
+        self.train_runner, self.validation_runner, self.test_runner = None, None, None
 
+        # 체크포인트 로드
         if args.checkpoint:
             self.load_checkpoint(args.checkpoint)
 
-    def __device_check(self, device):
-        if device == "cuda" and torch.cuda.is_available():
-            return device
+    def _parse_arguments(self):
+        parser = ArgumentParser(description="실험 및 검증을 위한 실험 프로젝트")
+        parser.add_argument("--config", type=str, help="configuration file location")
+        parser.add_argument("--checkpoint", default=None, type=str, help="checkpoint path")
+        return parser.parse_args()
 
+    def _setup_device(self, device: str):
+        if device == "cuda" and torch.cuda.is_available():
+            return "cuda"
         return "cpu"
 
-    def __set_seed(self, seed):
-        self.seed = seed
+    def _set_seed(self, seed: int):
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -108,72 +75,80 @@ class Experiment:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+    def _setup_experiment_directory(self, config_path: str):
+        workspace = Path(config_path).resolve().parent.parent
+        exp_base_dir = workspace / "experiment"
+        exp_base_dir.mkdir(parents=True, exist_ok=True)
+
+        exp_dir = exp_base_dir / (self.exp_time.strftime("%y%m%d_%H%M%S") + f"_{Path(config_path).stem}")
+        exp_dir.mkdir(exist_ok=True)
+
+        checkpoint_dir = exp_dir / "checkpoint"
+        checkpoint_dir.mkdir(exist_ok=True)
+        
+        return workspace, exp_dir, checkpoint_dir
+
+    def _setup_model_and_optimizer(self):
+        model = MODEL_INTERFACE_REGISTRY.build(**self.config["cfg"]["model_interface"])
+        model.to(self.device)
+
+        optimizer = OPTIMIZER_REGISTRY.build(**self.config["cfg"]["optimizer"], params=model.parameters())
+        scheduler = None
+        if "scheduler" in self.config["cfg"]:
+            raise NotImplementedError("Scheduler setting is not implemented")
+
+        return model, optimizer, scheduler
+
     def train(self):
+        """학습 및 검증 루프"""
         best_val_loss = float("inf")
 
         self.train_runner = TrainRunner(
-            self.model,
-            self.dataloader_factory.get("train"),
-            self.optimizer,
-            self.device,
+            self.model, self.dataloader_factory.get("train"), self.optimizer, self.device
         )
         self.validation_runner = ValidationRunner(
             self.model, self.dataloader_factory.get("validation"), self.device
         )
 
-        epoch_pbar = tqdm(range(self.max_epoch), desc="EPOCH", leave=True)
-        epoch_pbar.update(self.current_epoch)
+        epoch_pbar = tqdm(range(self.current_epoch, self.max_epoch), desc="EPOCH", leave=True)
         for epoch in epoch_pbar:
             train_loss = self.train_runner.run()
-            print(f"Epoch {epoch} Train Loss: {train_loss:.4f}")
-
             val_loss = self.validation_runner.run()
-            print(f"Epoch {epoch} Validation Loss: {val_loss:.4f}")
 
+            print(f"Epoch {epoch} Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}")
             self.current_epoch = epoch
-            if epoch % self.checkpoint_period == 0:
-                self.save_checkpoint(f"{epoch}-CHECKPOINT.pth")
 
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                self.save_checkpoint("BEST-CHECKPOINT.pth")
+            # 체크포인트 저장
+            self._save_checkpoint_if_needed(val_loss, best_val_loss)
+            best_val_loss = min(best_val_loss, val_loss)
 
-    def test(self, split: str = "test"):
-        self.test_runner = TestRunner(
-            self.model,
-            self.dataloader_factory.get(split),
-            self.device,
-        )
+    def _save_checkpoint_if_needed(self, val_loss, best_val_loss):
+        if self.current_epoch % self.checkpoint_period == 0:
+            self.save_checkpoint(self.checkpoint_dir / f"{self.current_epoch}-CHECKPOINT.pth")
 
-        return self.test_runner.run()
+        if val_loss < best_val_loss:
+            self.save_checkpoint(self.exp_dir / "BEST-CHECKPOINT.pth")
 
     def save_checkpoint(self, path: Union[str, Path]):
-        self.logger.info("Save checkpoint  %s", path)
-        torch.save(
-            {
-                "epoch": self.current_epoch,
-                "model": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "scheduler": self.scheduler.state_dict() if self.scheduler else None,
-                "config": self.config,
-            },
-            path,
-        )
+        self.logger.info(f"Saving checkpoint at {path}")
+        torch.save({
+            "epoch": self.current_epoch,
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "scheduler": self.scheduler.state_dict() if self.scheduler else None,
+            "config": self.config,
+        }, path)
 
     def load_checkpoint(self, path: Union[str, Path]):
-        self.logger.info("Load checkpoint %s", path)
-        checkpoint = torch.load(path)  # 저장된 체크포인트 불러오기
+        self.logger.info(f"Loading checkpoint from {path}")
+        checkpoint = torch.load(path)
+        self.current_epoch = checkpoint["epoch"]
+        self.model.load_state_dict(checkpoint["model"])
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
+        if checkpoint.get("scheduler"):
+            self.scheduler.load_state_dict(checkpoint["scheduler"])
+        self.config = checkpoint["config"]
 
-        # 저장된 상태 복원
-        self.current_epoch = checkpoint["epoch"]  # 에폭 정보
-        self.model.load_state_dict(checkpoint["model"])  # 모델 가중치 로드
-        self.optimizer.load_state_dict(checkpoint["optimizer"])  # 옵티마이저 상태 로드
-
-        if checkpoint["scheduler"]:
-            self.scheduler.load_state_dict(
-                checkpoint["scheduler"]
-            )  # 스케줄러 상태 로드
-        self.config = checkpoint["config"]  # 설정 정보 로드
-
-    def visualization(self):
-        pass
+    def test(self, split: str = "test"):
+        self.test_runner = TestRunner(self.model, self.dataloader_factory.get(split), self.device)
+        return self.test_runner.run()
