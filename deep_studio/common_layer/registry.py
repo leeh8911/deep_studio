@@ -3,11 +3,17 @@
 사용자가 정의한 클래스를 등록하여 손쉽게 다룰 수 있게 도와주기 위한 레지스터
 """
 
+import importlib
 import logging
-from typing import Type, Dict, Any
+from typing import Type, Dict, Any, List
+import inspect
 
 
 class RegistryError(Exception):
+    """Registry에 관한 오류"""
+
+
+class RegistryNotAllowedExtModule(RegistryError):
     """Registry에 관한 오류"""
 
 
@@ -46,8 +52,13 @@ class BaseRegistry(metaclass=type):
         """
         super().__init_subclass__(**kwargs)
         cls.REGISTRY: Dict[str, Type[Any]] = {}
-        cls.logger = logging.getLogger(cls.__name__)  # 각 클래스의 이름으로 로거 설정
+        cls.__allow_ext_module = []
+        cls.loggerL = logging.getLogger(cls.__name__)  # 각 클래스의 이름으로 로거 설정
         BaseRegistry.all_registry[cls.__name__] = cls
+
+    @classmethod
+    def set_allow_ext_modules(cls, ext_module_list: List[str]):
+        cls.__allow_ext_module.extend(ext_module_list)
 
     @classmethod
     def register(cls, tgt: Type[Any]) -> Type[Any]:
@@ -67,18 +78,64 @@ class BaseRegistry(metaclass=type):
         """
         등록된 클래스를 이름을 통해 인스턴스화합니다.
         """
-        name = kwargs.get("name")
-        if name not in cls.REGISTRY:
-            raise RegistryError(f"Class '{name}' is not registered in {cls.__name__}.")
 
-        new_type = type(f"{name}_Logger", (cls.REGISTRY[name], LogMixin), {})
+        name = kwargs.pop("name")
+        if name in cls.REGISTRY:
+            # REGISTRY에서 인스턴스를 생성
+            new_type = type(f"{name}_Logger", (cls.REGISTRY[name], LogMixin), {})
 
-        instance = new_type(**kwargs)
-        instance.logger = cls.logger.getChild(new_type.__name__)
-        cls.logger.debug(
-            "Instance of '%s' created in '%s'.", new_type.__name__, cls.__name__
-        )
-        return instance
+            cls.validate_arguments(new_type, kwargs)
+
+            instance = new_type(**kwargs)
+            instance.logger = cls.logger.getChild(new_type.__name__)
+            cls.logger.debug(
+                "Instance of '%s' created in '%s'.", new_type.__name__, cls.__name__
+            )
+            return instance
+
+        try:
+            module_path, class_name = name.rsplit(".", 1)
+            base_module = name.split(".")[0]
+            if not base_module in cls.__allow_ext_module:
+                raise RegistryNotAllowedExtModule(
+                    f"{base_module} is not Allowed. {cls.__class__.__name__} registry allow these: {cls.__allow_ext_module}"
+                )
+            module = importlib.import_module(module_path)
+            tgt_class = getattr(module, class_name)
+            new_type = type(name, (tgt_class,), {})
+
+            cls.register(new_type)
+            cls.logger.debug("Class '%s' dynamically loaded and registered.", name)
+            kwargs.update({"name": name})
+            return cls.build(**kwargs)
+        except Exception as e:
+            raise RegistryError(f"Error loading class '{name}': {e}")
+
+    @classmethod
+    def validate_arguments(cls, new_type, kwargs):
+        # 클래스의 시그니처 확인
+        signature = inspect.signature(new_type)
+        parameters = signature.parameters
+
+        # 필수 인자 필터링: 기본값이 없는 인자만 선택
+        required_keys = {
+            name
+            for name, param in parameters.items()
+            if param.default is inspect.Parameter.empty
+            and param.kind
+            not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        }
+
+        # kwargs로 전달된 키
+        provided_keys = set(kwargs.keys())
+
+        # 필수 인자 누락 확인
+        missing_keys = required_keys - provided_keys
+        if missing_keys:
+            raise TypeError(
+                f"{new_type.__name__} class's required arguments are {required_keys}. "
+                f"But the following required arguments are missing: {missing_keys}."
+            )
 
 
 def make_registry(name: str, log_level: str = "info") -> Type[BaseRegistry]:
