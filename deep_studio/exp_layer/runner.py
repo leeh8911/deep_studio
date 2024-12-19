@@ -53,13 +53,15 @@ class TrainRunner(BaseRunner):
                 self.device
             )
 
-            loss, _ = self.model.forward_train(input_image, gt_image)
+            losses, _ = self.model.forward_train(input_image, gt_image)
+            loss = sum(losses.values())
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
+            losses.update({"total_loss": loss})
             total_loss += loss.item()
-            train_pbar.set_postfix({"loss": loss.item()})
+            train_pbar.set_postfix({k: v.item() for k, v in losses.items()})
 
         return total_loss / len(self.dataloader)
 
@@ -77,9 +79,10 @@ class ValidationRunner(BaseRunner):
                     self.device
                 )
 
-                loss, _ = self.model.forward_train(input_image, gt_image)
+                losses, _ = self.model.forward_train(input_image, gt_image)
+                loss = sum(losses.values())
                 total_loss += loss.item()
-                val_pbar.set_postfix({"loss": loss.item()})
+                val_pbar.set_postfix({k: v.item() for k, v in losses.items()})
 
         return total_loss / len(self.dataloader)
 

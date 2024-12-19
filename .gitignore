@@ -9,3 +9,5 @@ build/
 .pytest_cache/
 
 *.pth
+experiment/
+**/experiment/
