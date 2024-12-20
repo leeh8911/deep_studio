@@ -19,11 +19,10 @@ flake8 = "^7.1.1"
 pyyaml = "^6.0.2"
 scikit-learn = "^1.6.0"
 tqdm = "^4.67.1"
+opencv-python = "^4.10.0.84"
+scikit-image = "^0.25.0"
+tensorboard = "^2.18.0"
 
-# Windows용 (CUDA 버전)
-torch = { version = "^2.5.1+cu124", source = "pytorch-cu124", markers = "sys_platform == 'win32'" }
-torchvision = { version = "^0.20.1+cu124", source = "pytorch-cu124", markers = "sys_platform == 'win32'" }
-torchaudio = { version = "^2.5.1+cu124", source = "pytorch-cu124", markers = "sys_platform == 'win32'" }
 
 # macOS용 (CPU + MPS 버전)
 torch = { version = "^2.5.1", markers = "sys_platform == 'darwin'" }

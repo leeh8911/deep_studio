@@ -35,17 +35,20 @@ def generate_temporal_classes(generate_temporal_folder):
     class TemporalModelInterface(BaseModelInterface):
         def __init__(self):
             super().__init__()
-            self.empty_layer = torch.nn.Linear(1,1)
-        def forward_train(self):
-            pass
-        def forward_test(self):
-            pass
+            self.empty_layer = torch.nn.Linear(2,1)
+        def forward_train(self, *args):
+            pred = self.empty_layer(args[0])
+            
+            return {"loss":torch.nn.functional.l1_loss(pred, args[1])}, {"metric":torch.zeros(1).to(args[0].device)}
+        def forward_test(self, *args):
+            pred = self.empty_layer(args[0])
+            return {"result":pred}
         
     @DATASET_REGISTRY.register
     class TemporalDataset(torch.utils.data.Dataset):
         def __init__(self):
             self.x = torch.rand(10, 2)
-            self.y = torch.rand(10)
+            self.y = torch.rand(10, 1)
         def __len__(self):
             return len(self.x)
         
@@ -79,7 +82,7 @@ def test_experiment_initialize(generate_config):
     """ Experiment 실행 시, 저장이 필요한 파일들이 제대로 된 위치에 추가되는지를 확인함.
     playground/project-name/    # 프로젝트의 최상위 경로
     │
-    └── experiment/             # Experiment 저장 디렉토리
+    └── logs/             # Experiment 저장 디렉토리
         └── {YYMMDD_HHMMSS}_{config_file_name}/   # 특정 실험 실행 시 생성되는 디렉토리
             ├── EPOCH_{num}/                    # 각 에폭의 결과를 저장
             │   ├── checkpoint.pth              # 체크포인트 파일
@@ -113,8 +116,3 @@ def test_experiment_initialize(generate_config):
 
     assert best_checkpoint.exists(), "BEST-CHECKPOINT.pth 파일이 존재해야 합니다."
     assert epoch_0_checkpoint.exists(), "0-CHECKPOINT.pth 파일이 존재해야 합니다."
-
-    # 3. 폴더 구조 검증
-    print(f"Experiment Directory: {exp_dir}")
-    print(f"Checkpoint Directory: {checkpoint_dir}")
-    print("BEST-CHECKPOINT.pth와 0-CHECKPOINT.pth가 생성되었습니다.")
