@@ -22,6 +22,9 @@ tqdm = "^4.67.1"
 torch = {version = "^2.5.1+cu124", source = "pytorch-cu124"}
 torchvision = {version = "^0.20.1+cu124", source = "pytorch-cu124"}
 torchaudio = {version = "^2.5.1+cu124", source = "pytorch-cu124"}
+opencv-python = "^4.10.0.84"
+scikit-image = "^0.25.0"
+tensorboard = "^2.18.0"
 
 
 [build-system]

@@ -7,18 +7,16 @@ from pathlib import Path
 import logging
 import sys
 
-
 import numpy as np
 import torch
 from tqdm import tqdm
 from torchvision.transforms.functional import to_pil_image
-from sklearn.model_selection import train_test_split
+from torch.utils.tensorboard import SummaryWriter  # TensorBoard 추가
 
 from deep_studio.common_layer.config import Config
 from deep_studio.data_layer.data_registry import DATALOADER_FACTORY_REGISTRY
 from deep_studio.model_layer.model_registry import (
     MODEL_INTERFACE_REGISTRY,
-    MODEL_REGISTRY,
     OPTIMIZER_REGISTRY,
 )
 from deep_studio.exp_layer.runner import TrainRunner, ValidationRunner, TestRunner
@@ -46,6 +44,9 @@ class Experiment:
 
         # 경로 설정
         self.__initialize_paths()
+
+        # TensorBoard Writer 추가
+        self.writer = SummaryWriter(log_dir=str(self.exp_dir / "logs"))
 
         # 모델, 옵티마이저, 스케줄러 설정
         self.__initialize_components()
@@ -134,43 +135,32 @@ class Experiment:
             self.dataloader_factory.get("train"),
             self.optimizer,
             self.device,
+            writer=self.writer,  # TensorBoard 전달
         )
         self.validation_runner = ValidationRunner(
-            self.model, self.dataloader_factory.get("validation"), self.device
-        )
-
-        # TODO(sangwon): 추후 리팩터링 필요
-        self.test_runner = TestRunner(
-            self.model, self.dataloader_factory.get("validation"), self.device
+            self.model,
+            self.dataloader_factory.get("validation"),
+            self.device,
+            writer=self.writer,  # TensorBoard 전달
         )
 
         epoch_pbar = tqdm(range(self.max_epoch), desc="EPOCH", leave=True)
         epoch_pbar.update(self.current_epoch)
         for epoch in epoch_pbar:
-            train_loss = self.train_runner.run()
-            print(f"Epoch {epoch} Train Loss: {train_loss:.4f}")
+            train_loss = self.train_runner.run(epoch)
 
-            val_loss = self.validation_runner.run()
-            print(f"Epoch {epoch} Validation Loss: {val_loss:.4f}")
-
-            if True:  # TODO(sangwon): 추후 리팩터링 필요
-                test_results = self.test_runner.run()
-                temp_test_results_save_dir = Path(self.exp_dir, "EPOCH_" + str(epoch))
-                os.mkdir(temp_test_results_save_dir)
-                for idx, image in enumerate(test_results):
-                    image = to_pil_image(image)
-
-                    image.save(
-                        f"{temp_test_results_save_dir}/TEST_{str(idx).zfill(3)}.png"
-                    )
+            val_loss = self.validation_runner.run(epoch)
 
             self.current_epoch = epoch
             if epoch % self.checkpoint_period == 0:
                 self.save_checkpoint(f"{epoch}-CHECKPOINT.pth")
 
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            if val_loss["total_loss"] < best_val_loss:
+                best_val_loss = val_loss["total_loss"]
                 self.save_checkpoint("BEST-CHECKPOINT.pth")
+
+        # TensorBoard writer 종료
+        self.writer.close()
 
     def test(self, split: str = "test"):
         self.test_runner = TestRunner(
@@ -196,18 +186,10 @@ class Experiment:
 
     def load_checkpoint(self, path: Union[str, Path]):
         self.logger.info("Load checkpoint %s", path)
-        checkpoint = torch.load(path)  # 저장된 체크포인트 불러오기
-
-        # 저장된 상태 복원
-        self.current_epoch = checkpoint["epoch"]  # 에폭 정보
-        self.model.load_state_dict(checkpoint["model"])  # 모델 가중치 로드
-        self.optimizer.load_state_dict(checkpoint["optimizer"])  # 옵티마이저 상태 로드
-
+        checkpoint = torch.load(path)
+        self.current_epoch = checkpoint["epoch"]
+        self.model.load_state_dict(checkpoint["model"])
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
         if checkpoint["scheduler"]:
-            self.scheduler.load_state_dict(
-                checkpoint["scheduler"]
-            )  # 스케줄러 상태 로드
-        self.config = checkpoint["config"]  # 설정 정보 로드
-
-    def visualization(self):
-        pass
+            self.scheduler.load_state_dict(checkpoint["scheduler"])
+        self.config = checkpoint["config"]

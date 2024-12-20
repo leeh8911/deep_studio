@@ -8,12 +8,15 @@ from deep_studio.model_layer.model_registry import MODEL_REGISTRY
 
 @MODEL_REGISTRY.register
 class SecondModel(nn.Module):
+
     def __init__(
         self,
         embed_layers: List[Dict],
         downsample_layers: List[Dict],
-        num_transformer_layers: int,
-        transformer_layer: Dict,
+        num_encoder_transformer_layers: int,
+        encoder_transformer_layer: Dict,
+        num_decoder_transformer_layers: int,
+        decoder_transformer_layer: Dict,
         upsample_layers: List[Dict],
         head: Dict,
         **kwargs
@@ -36,9 +39,19 @@ class SecondModel(nn.Module):
             )
 
         # Transformer Encoder
-        self.transformer_layer = MODEL_REGISTRY.build(**transformer_layer)
+        self.transformer_encoder_layer = MODEL_REGISTRY.build(
+            **encoder_transformer_layer
+        )
         self.transformer_encoder = nn.TransformerEncoder(
-            self.transformer_layer, num_layers=num_transformer_layers
+            self.transformer_encoder_layer, num_layers=num_encoder_transformer_layers
+        )
+
+        # Transformer Encoder
+        self.transformer_decoder_layer = MODEL_REGISTRY.build(
+            **decoder_transformer_layer
+        )
+        self.transformer_decoder = nn.TransformerDecoder(
+            self.transformer_decoder_layer, num_layers=num_decoder_transformer_layers
         )
 
         # Upsampling layers (with MaxUnpool2d)
@@ -56,6 +69,7 @@ class SecondModel(nn.Module):
         sizes = []  # 원본 사이즈 저장 (Unpooling 용)
         residuals = []  # Residual 연결을 저장
 
+        image[image == 0] += torch.rand_like(image)[image == 0]
         # Embedding layers
         for embed_layer in self.embed_layers:
             image = embed_layer(image)
@@ -70,9 +84,12 @@ class SecondModel(nn.Module):
         # Flatten for Transformer
         b, c, h, w = image.size()
         image = image.view(b, c, -1).permute(2, 0, 1)  # (seq_len, batch, channels)
+        noise = torch.rand_like(image)
 
         # Transformer Encoder
-        image = self.transformer_encoder(image)
+        encode_image = self.transformer_encoder(image)
+        decode_image = self.transformer_decoder(noise, encode_image)
+        image = encode_image + decode_image
 
         # Reshape back to 2D
         image = image.permute(1, 2, 0).contiguous().view(b, c, h, w)
