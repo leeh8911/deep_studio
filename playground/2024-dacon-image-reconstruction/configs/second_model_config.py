@@ -11,7 +11,8 @@ TEST = "test"
 
 SEED = 42
 
-MAX_EPOCH = 1
+MAX_EPOCH = 16
+BATCH_SIZE = 8
 
 DATALOADER_FACTORY = {
     "name": "DataLoaderFactory",
@@ -39,11 +40,12 @@ DATALOADER_FACTORY = {
     },
     "seed": SEED,
     "split": {TRAIN: 0.9, VALIDATION: 0.1},
-    TRAIN: {"batch_size": 8, "shuffle": True},
-    VALIDATION: {"batch_size": 8, "shuffle": False},
-    TEST: {"batch_size": 8, "shuffle": False},
+    TRAIN: {"batch_size": BATCH_SIZE, "shuffle": True},
+    VALIDATION: {"batch_size": BATCH_SIZE, "shuffle": False},
+    TEST: {"batch_size": BATCH_SIZE, "shuffle": False},
 }
 
+EMBED_SIZE = 16
 cfg = {
     "seed": SEED,
     "device": "cuda",
@@ -53,7 +55,6 @@ cfg = {
     "temp_output_dir": "./temp_output",
     "checkpoint_period": 1,
     "dataloader": DATALOADER_FACTORY,
-    "split": {TRAIN: 0.8, "validation": 0.2},
     "model_interface": {
         "name": "Dacon2024ImageReconstructionModelInterface",
         "model": {
@@ -62,76 +63,151 @@ cfg = {
                 {
                     "name": "CNBR",
                     "in_channels": 1,
-                    "out_channels": 16,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 7,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 5,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 5,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 5,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
                 {
                     "name": "CNBR",
-                    "in_channels": 16,
-                    "out_channels": 16,
-                    "kernel_size": 3,
-                },
-                {
-                    "name": "CNBR",
-                    "in_channels": 16,
-                    "out_channels": 64,
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
             ],
             "downsample_layers": [
                 {
                     "name": "CNBR",
-                    "in_channels": 64,
-                    "out_channels": 64,
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
                 {
                     "name": "CNBR",
-                    "in_channels": 64,
-                    "out_channels": 64,
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
                 {
                     "name": "CNBR",
-                    "in_channels": 64,
-                    "out_channels": 64,
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
             ],
-            "num_transformer_layers": 6,
-            "transformer_layer": {
+            "num_encoder_transformer_layers": 1,
+            "encoder_transformer_layer": {
                 "name": "torch.nn.TransformerEncoderLayer",
-                "d_model": 64,
-                "nhead": 8,
+                "d_model": EMBED_SIZE,
+                "nhead": 4,
+            },
+            "num_decoder_transformer_layers": 1,
+            "decoder_transformer_layer": {
+                "name": "torch.nn.TransformerDecoderLayer",
+                "d_model": EMBED_SIZE,
+                "nhead": 4,
             },
             "upsample_layers": [
                 {
                     "name": "CNBR",
-                    "in_channels": 64,
-                    "out_channels": 64,
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
                 {
                     "name": "CNBR",
-                    "in_channels": 64,
-                    "out_channels": 64,
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
                 {
                     "name": "CNBR",
-                    "in_channels": 64,
-                    "out_channels": 64,
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
+                    "kernel_size": 3,
+                },
+                {
+                    "name": "CNBR",
+                    "in_channels": EMBED_SIZE,
+                    "out_channels": EMBED_SIZE,
                     "kernel_size": 3,
                 },
             ],
             "head": {
                 "name": "CNBR",
-                "in_channels": 64,
+                "in_channels": EMBED_SIZE,
                 "out_channels": 3,
-                "kernel_size": 3,
+                "kernel_size": 1,
             },
         },
-        "criterion": {"name": "torch.nn.L1Loss"},
+        "criterions": {
+            "color_criterion": {"name": "torch.nn.L1Loss"},
+            "recon_criterion": {"name": "torch.nn.L1Loss"},
+        },
     },
-    "optimizer": {"name": "torch.optim.SGD", "lr": 1e-3, "momentum": 0.9},
+    "optimizer": {"name": "torch.optim.AdamW", "lr": 1e-3},
 }

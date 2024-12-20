@@ -7,17 +7,16 @@ from pathlib import Path
 import logging
 import sys
 
-
 import numpy as np
 import torch
 from tqdm import tqdm
-from sklearn.model_selection import train_test_split
+from torchvision.transforms.functional import to_pil_image
+from torch.utils.tensorboard import SummaryWriter  # TensorBoard 추가
 
 from deep_studio.common_layer.config import Config
 from deep_studio.data_layer.data_registry import DATALOADER_FACTORY_REGISTRY
 from deep_studio.model_layer.model_registry import (
     MODEL_INTERFACE_REGISTRY,
-    MODEL_REGISTRY,
     OPTIMIZER_REGISTRY,
 )
 from deep_studio.exp_layer.runner import TrainRunner, ValidationRunner, TestRunner
@@ -32,6 +31,36 @@ class Experiment:
         self.logger = logging.getLogger("ExperimentLogger")
         self.exp_time = datetime.now()
 
+        # 설정 초기화
+        self.__initialize_config()
+
+        # 시드 설정
+        self.seed = self.config["cfg"].get("seed", 0)
+        self.__set_seed(self.seed)
+
+        # 디바이스 설정
+        self.device = self.__device_check(self.config["cfg"]["device"])
+        self.logger.info("Set device: %s", self.device)
+
+        # 경로 설정
+        self.__initialize_paths()
+
+        # TensorBoard Writer 추가
+        self.writer = SummaryWriter(log_dir=str(self.exp_dir / "logs"))
+
+        # 모델, 옵티마이저, 스케줄러 설정
+        self.__initialize_components()
+
+        # 체크포인트 로드
+        if self.checkpoint:
+            self.load_checkpoint(self.checkpoint)
+
+        self.train_runner = None
+        self.validation_runner = None
+        self.test_runner = None
+
+    def __initialize_config(self):
+        """Argument Parser 및 Config 초기화"""
         parser = ArgumentParser(description="실험 및 검증을 위한 실험 프로젝트")
         parser.add_argument(
             "--config", type=str, help="configuration file location for training"
@@ -41,65 +70,55 @@ class Experiment:
         )
 
         args = parser.parse_args()
-        config_path = args.config  # {project_path}/configs/config_file
+        self.checkpoint = args.checkpoint
 
-        self.config_name = config_path.split("/")[-1].split(".")[0]
-        self.workspace = Path(*config_path.split("/")[:-2])
+        config_path = args.config
+        self.config_name = Path(config_path).stem
+        self.workspace = Path(config_path).parent.parent
         self.config = Config.from_file(config_path)
 
-        self.seed = self.config["cfg"]["seed"] if "seed" in self.config["cfg"] else 0
-        self.__set_seed(self.seed)
+    def __initialize_paths(self):
+        """Experiment 디렉토리 및 경로 초기화"""
+        self.exp_base_dir = self.workspace / "experiment"
+        self.exp_base_dir.mkdir(exist_ok=True)
 
-        self.device = self.__device_check(self.config["cfg"]["device"])
-        self.logger.info("Set device: %s", self.device)
+        self.exp_dir = self.exp_base_dir / (
+            self.exp_time.strftime("%y%m%d_%H%M%S") + "_" + self.config_name
+        )
+        self.exp_dir.mkdir()
 
+        self.checkpoint_dir = self.exp_dir / "checkpoint"
+        self.output_dir = self.exp_dir / "output"
+
+        self.checkpoint_period = self.config["cfg"]["checkpoint_period"]
         self.max_epoch = self.config["cfg"]["max_epoch"]
         self.current_epoch = 0
 
-        self.exp_base_dir = self.workspace.joinpath("experiment")
-        if not self.exp_base_dir.exists():
-            os.mkdir(self.exp_base_dir)
-        self.exp_dir = self.exp_base_dir.joinpath(
-            self.exp_time.strftime("%y%m%d_%H%M%S") + "_" + self.config_name
-        )
-        os.mkdir(self.exp_dir)
-
-        self.checkpoint_dir = self.exp_dir.joinpath("checkpoint")
-        self.checkpoint_period = self.config["cfg"]["checkpoint_period"]
-
-        self.output_dir = self.exp_dir.joinpath("output")
-
+    def __initialize_components(self):
+        """모델, 옵티마이저, 스케줄러 초기화"""
         self.model = MODEL_INTERFACE_REGISTRY.build(
             **self.config["cfg"]["model_interface"]
         )
         self.model.to(self.device)
+
         self.optimizer = OPTIMIZER_REGISTRY.build(
             **self.config["cfg"]["optimizer"], params=self.model.parameters()
         )
+
+        self.scheduler = None
         if "scheduler" in self.config["cfg"]:
             raise NotImplementedError("Scheduler setting is not implemented")
-            # self.scheduler = self.config["cfg"]["scheduler"]
-        else:
-            self.scheduler = None
 
         self.dataloader_factory = DATALOADER_FACTORY_REGISTRY.build(
             **self.config["cfg"]["dataloader"]
         )
-        self.train_runner = None
-        self.validation_runner = None
-        self.test_runner = None
-
-        if args.checkpoint:
-            self.load_checkpoint(args.checkpoint)
 
     def __device_check(self, device):
-        if device == "cuda" and torch.cuda.is_available():
-            return device
-
-        return "cpu"
+        """디바이스 설정 확인"""
+        return device if device == "cuda" and torch.cuda.is_available() else "cpu"
 
     def __set_seed(self, seed):
-        self.seed = seed
+        """시드 설정"""
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -116,27 +135,32 @@ class Experiment:
             self.dataloader_factory.get("train"),
             self.optimizer,
             self.device,
+            writer=self.writer,  # TensorBoard 전달
         )
         self.validation_runner = ValidationRunner(
-            self.model, self.dataloader_factory.get("validation"), self.device
+            self.model,
+            self.dataloader_factory.get("validation"),
+            self.device,
+            writer=self.writer,  # TensorBoard 전달
         )
 
         epoch_pbar = tqdm(range(self.max_epoch), desc="EPOCH", leave=True)
         epoch_pbar.update(self.current_epoch)
         for epoch in epoch_pbar:
-            train_loss = self.train_runner.run()
-            print(f"Epoch {epoch} Train Loss: {train_loss:.4f}")
+            train_loss = self.train_runner.run(epoch)
 
-            val_loss = self.validation_runner.run()
-            print(f"Epoch {epoch} Validation Loss: {val_loss:.4f}")
+            val_loss = self.validation_runner.run(epoch)
 
             self.current_epoch = epoch
             if epoch % self.checkpoint_period == 0:
                 self.save_checkpoint(f"{epoch}-CHECKPOINT.pth")
 
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            if val_loss["total_loss"] < best_val_loss:
+                best_val_loss = val_loss["total_loss"]
                 self.save_checkpoint("BEST-CHECKPOINT.pth")
+
+        # TensorBoard writer 종료
+        self.writer.close()
 
     def test(self, split: str = "test"):
         self.test_runner = TestRunner(
@@ -162,18 +186,10 @@ class Experiment:
 
     def load_checkpoint(self, path: Union[str, Path]):
         self.logger.info("Load checkpoint %s", path)
-        checkpoint = torch.load(path)  # 저장된 체크포인트 불러오기
-
-        # 저장된 상태 복원
-        self.current_epoch = checkpoint["epoch"]  # 에폭 정보
-        self.model.load_state_dict(checkpoint["model"])  # 모델 가중치 로드
-        self.optimizer.load_state_dict(checkpoint["optimizer"])  # 옵티마이저 상태 로드
-
+        checkpoint = torch.load(path)
+        self.current_epoch = checkpoint["epoch"]
+        self.model.load_state_dict(checkpoint["model"])
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
         if checkpoint["scheduler"]:
-            self.scheduler.load_state_dict(
-                checkpoint["scheduler"]
-            )  # 스케줄러 상태 로드
-        self.config = checkpoint["config"]  # 설정 정보 로드
-
-    def visualization(self):
-        pass
+            self.scheduler.load_state_dict(checkpoint["scheduler"])
+        self.config = checkpoint["config"]
