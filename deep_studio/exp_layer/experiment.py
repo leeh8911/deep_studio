@@ -141,8 +141,11 @@ class Experiment:
 
     def _initialize_components(self):
         """
-        모델, 옵티마이저 및 데이터로더를 초기화합니다.
+        데이터로더, 모델, 옵티마이저를 초기화합니다.
         """
+        self.dataloader_factory = DATALOADER_FACTORY_REGISTRY.build(
+            **self.config["cfg"]["dataloader"]
+        )
         self.model = MODEL_INTERFACE_REGISTRY.build(
             **self.config["cfg"]["model_interface"]
         )
@@ -182,6 +185,16 @@ class Experiment:
                 self.save_checkpoint(self.exp_dir / "BEST-CHECKPOINT.pth")
 
         self.writer.close()
+        
+    def test(self, split: str = "test"):
+        """
+        모델 테스트
+        """
+        self.test_runner = TestRunner(
+            self.model,
+            self.dataloader_factory.get(split),
+            self.device,
+        )
 
     def save_checkpoint(self, path: Union[str, Path]):
         """
