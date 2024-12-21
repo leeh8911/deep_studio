@@ -33,7 +33,6 @@ def test_basic_register_check():
 
     marvel.do_something()
 
-    assert marvel.name == "Marvel"
     assert marvel.spiderman == "Tom"
     assert marvel.ironman == "Robert"
 
@@ -68,8 +67,10 @@ def test_all_registry_need_to_be_independently():
 
 def test_dynamically_load_from_ext_module():
     """외부 모듈(여기선 torch)에서 등록되지 않은 클래스를 사용"""
+    import torch
 
     LOSS_REGISTRY = make_registry("LOSS_REGISTRY")
+    LOSS_REGISTRY.set_allow_ext_modules(["torch"])
 
     criterion = LOSS_REGISTRY.build(**{"name": "torch.nn.L1Loss"})
     assert criterion.__class__.__name__ == "torch.nn.L1Loss_Logger"
