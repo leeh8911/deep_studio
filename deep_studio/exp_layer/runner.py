@@ -77,6 +77,7 @@ class TrainRunner(BaseRunner):
         total_loss_sum = 0.0
 
         train_pbar = tqdm(self.dataloader, desc=f"TRAIN EPOCH {epoch}", leave=False)
+        draw_image_step = 1000
 
         for step, (input_image, gt_image) in enumerate(train_pbar):
             input_image, gt_image = (
@@ -85,7 +86,7 @@ class TrainRunner(BaseRunner):
             )
 
             # Loss 및 Metrics 계산
-            losses, metrics = self.model.forward_train(input_image, gt_image)
+            results, losses, metrics = self.model.forward_train(input_image, gt_image)
             loss_sum = sum(losses.values())
 
             # 옵티마이저 업데이트
@@ -117,6 +118,22 @@ class TrainRunner(BaseRunner):
                     self.writer.add_scalar(
                         f"Train/Step_{key}", value, epoch * len(self.dataloader) + step
                     )
+
+            if step % draw_image_step == 0:
+                self.writer.add_images(
+                    "input", input_image, epoch * len(self.dataloader) + step
+                )
+                self.writer.add_images(
+                    "mask_pred",
+                    results["mask_prediction"],
+                    epoch * len(self.dataloader) + step,
+                )
+                self.writer.add_images(
+                    "pred", results["image"], epoch * len(self.dataloader) + step
+                )
+                self.writer.add_images(
+                    "gt", gt_image, epoch * len(self.dataloader) + step
+                )
 
             # 진행 상태 업데이트
             train_pbar.set_postfix({"Total_Loss": f"{loss_sum.item():.4f}"})
@@ -153,6 +170,7 @@ class ValidationRunner(BaseRunner):
         total_loss_sum = 0.0
 
         val_pbar = tqdm(self.dataloader, desc=f"VALIDATION EPOCH {epoch}", leave=False)
+        draw_image_step = 1000
 
         with torch.no_grad():
             for step, (input_image, gt_image) in enumerate(val_pbar):
@@ -162,7 +180,9 @@ class ValidationRunner(BaseRunner):
                 )
 
                 # Loss 및 Metrics 계산
-                losses, metrics = self.model.forward_train(input_image, gt_image)
+                results, losses, metrics = self.model.forward_train(
+                    input_image, gt_image
+                )
                 loss_sum = sum(losses.values())
 
                 # Loss 및 Metrics 누적
@@ -172,6 +192,21 @@ class ValidationRunner(BaseRunner):
                     total_metrics[key] = total_metrics.get(key, 0.0) + value
                 total_loss_sum += loss_sum.item()
 
+                if step % draw_image_step == 0:
+                    self.writer.add_images(
+                        "input", input_image, epoch * len(self.dataloader) + step
+                    )
+                    self.writer.add_images(
+                        "mask_pred",
+                        results["mask_prediction"],
+                        epoch * len(self.dataloader) + step,
+                    )
+                    self.writer.add_images(
+                        "pred", results["image"], epoch * len(self.dataloader) + step
+                    )
+                    self.writer.add_images(
+                        "gt", gt_image, epoch * len(self.dataloader) + step
+                    )
                 val_pbar.set_postfix({"Total_Loss": f"{loss_sum.item():.4f}"})
 
         # 평균 Loss 및 Metrics 계산

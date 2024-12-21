@@ -87,5 +87,5 @@ cfg = {
             "masked_recon_criterion": {"name": "torch.nn.L1Loss", "reduction": "none"},
         },
     },
-    "optimizer": {"name": "torch.optim.AdamW", "lr": 1e-3},
+    "optimizer": {"name": "torch.optim.AdamW", "lr": 1e-4},
 }

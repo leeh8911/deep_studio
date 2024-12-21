@@ -1,3 +1,4 @@
+from typing import Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -164,7 +165,7 @@ class Dacon2024ImageReconstructionModelInterface(BaseModelInterface):
         }
         return metrics
 
-    def forward_train(self, image: Image, target_image: Image) -> (Loss, Metrics):
+    def forward_train(self, image: Image, target_image: Image) -> (Any, Loss, Metrics):
         results = self(image)
 
         # Loss 계산
@@ -177,7 +178,7 @@ class Dacon2024ImageReconstructionModelInterface(BaseModelInterface):
             results["mask_prediction"].detach(),
         )
 
-        return losses, metrics
+        return results, losses, metrics
 
     def forward_test(self, image: Image) -> Image:
         results = self(image)
